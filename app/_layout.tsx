@@ -1,16 +1,16 @@
 import { Image, StyleSheet, Text, TouchableOpacity, View } from "react-native";
-import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp } from "lucide-react-native";
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, Redo, Undo } from "lucide-react-native";
 import { useEffect, useRef, useState } from "react";
 import { ref, update, get } from "firebase/database";
 import { db } from "../firebaseConfig";
 
-type DirectionType = "up" | "down" | "left" | "right";
+type DirectionType = "up" | "down" | "left" | "right" | "turn_left" | "turn_right";
 
 const RootLayout = () => {
   const [status, setStatus] = useState("🔄 Đang kiểm tra kết nối...");
   const [message, setMessage] = useState("");
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
+  let directionRef = '';
   useEffect(() => {
     const fetchStatus = async () => {
       const statusRef = await get(ref(db, `esp32_info/status`));
@@ -25,31 +25,38 @@ const RootLayout = () => {
     fetchStatus();
   }, []);
 
-  const handlePressControl = (direction: DirectionType, step: number) => {
-    update(ref(db, `esp32_direction`), { [direction]: step })
-    .then(() => setTimeout(() => {
-      update(ref(db, `esp32_direction`), { [direction]: 0 });
-    }, 1000))
-    .catch((err) =>
-      setStatus("Lỗi khi gửi lệnh: " + err.message)
-    );
-  };
+  // const handlePressControl = async (direction: DirectionType, step: number) => {
+  //   const snapshot = await get(ref(db, `esp32_direction/${direction}`));
+  //   const currentValue = snapshot.exists() ? snapshot.val() : 0;
+  //   update(ref(db, `esp32_direction`), { [direction]: currentValue + step })
+  //     .then(() => setTimeout(() => {
+  //       update(ref(db, `esp32_direction`), { [direction]: 0 });
+  //     }, 1000))
+  //     .catch((err) =>
+  //       setStatus("Lỗi khi gửi lệnh: " + err.message)
+  //     );
+  // };
 
   const handleLongPressControl = (direction: DirectionType) => {
+    if (direction === "up" || direction === "down" || direction === "left" || direction === "right") {
+      directionRef = 'esp32_direction';
+    } else {
+      directionRef = 'esp32_turn';
+    }
 
     if (intervalRef.current) return;
 
     intervalRef.current = setInterval(async () => {
       try {
-        const snapshot = await get(ref(db, `esp32_direction/${direction}`));
+        const snapshot = await get(ref(db, `${directionRef}/${direction}`));
         const currentValue = snapshot.exists() ? snapshot.val() : 0;
-        await update(ref(db, `esp32_direction`), {
+        await update(ref(db, `${directionRef}`), {
           [direction]: currentValue + 1,
         });
       } catch (err: any) {
         console.log("Lỗi khi tăng giá trị:", err.message);
       }
-    }, 200);
+    }, 500);
   };
 
   const handleReleaseControl = (direction: DirectionType) => {
@@ -58,7 +65,7 @@ const RootLayout = () => {
       intervalRef.current = null;
       console.log("Dừng tăng giá trị");
       setTimeout(() => {
-        update(ref(db, `esp32_direction`), { [direction]: 0 });
+        update(ref(db, `${directionRef}`), { [direction]: 0 });
       }, 1000);
     }
   };
@@ -84,31 +91,49 @@ const RootLayout = () => {
 
       {/* Nút điều khiển */}
       <View style={styles.controlContainer}>
+
+        <View style={[styles.row, { gap: 140 }]}>
+          <TouchableOpacity style={[styles.buttonO]}
+            // onPress={() => handlePressControl("up", 1)}
+            onLongPress={() => handleLongPressControl("turn_left")}
+            onPressOut={() => handleReleaseControl("turn_left")}
+          >
+            <Undo size={30} color="white" />
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.buttonO]}
+            // onPress={() => handlePressControl("up", 1)}
+            onLongPress={() => handleLongPressControl("turn_right")}
+            onPressOut={() => handleReleaseControl("turn_right")}
+          >
+            <Redo size={30} color="white" />
+          </TouchableOpacity>
+        </View>
+
         {/* Up */}
-        <View style={styles.row}>
-          <TouchableOpacity style={styles.button} 
-          onPress={() => handlePressControl("up", 1)}
-          onLongPress={() => handleLongPressControl("up")}
-          onPressOut={() => handleReleaseControl("up")}
-        >
-          <ArrowUp size={30} color="white" />
-        </TouchableOpacity>
-      </View>
+        <View style={[styles.row, { gap: 10 }]}>
+          <TouchableOpacity style={styles.button}
+            // onPress={() => handlePressControl("up", 1)}
+            onLongPress={() => handleLongPressControl("up")}
+            onPressOut={() => handleReleaseControl("up")}
+          >
+            <ArrowUp size={30} color="white" />
+          </TouchableOpacity>
+        </View>
 
         {/* Left - Right */}
-        <View style={styles.row}>
-          <TouchableOpacity style={styles.button} 
-          onPress={() => handlePressControl("left", 1)}
-          onLongPress={() => handleLongPressControl("left")}
-          onPressOut={() => handleReleaseControl("left")}
+        <View style={[styles.row, { gap: 100 }]}>
+          <TouchableOpacity style={styles.button}
+            // onPress={() => handlePressControl("left", 1)}
+            onLongPress={() => handleLongPressControl("left")}
+            onPressOut={() => handleReleaseControl("left")}
           >
             <ArrowLeft size={30} color="white" />
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.button} 
-          onPress={() => handlePressControl("right", 1)}
-          onLongPress={() => handleLongPressControl("right")}
-          onPressOut={() => handleReleaseControl("right")}
+          <TouchableOpacity style={styles.button}
+            // onPress={() => handlePressControl("right", 1)}
+            onLongPress={() => handleLongPressControl("right")}
+            onPressOut={() => handleReleaseControl("right")}
           >
             <ArrowRight size={30} color="white" />
           </TouchableOpacity>
@@ -116,10 +141,10 @@ const RootLayout = () => {
 
         {/* Down */}
         <View style={styles.row}>
-          <TouchableOpacity style={styles.button} 
-          onPress={() => handlePressControl("down", 1)}
-          onLongPress={() => handleLongPressControl("down")}
-          onPressOut={() => handleReleaseControl("down")}
+          <TouchableOpacity style={styles.button}
+            // onPress={() => handlePressControl("down", 1)}
+            onLongPress={() => handleLongPressControl("down")}
+            onPressOut={() => handleReleaseControl("down")}
           >
             <ArrowDown size={30} color="white" />
           </TouchableOpacity>
@@ -180,6 +205,15 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     alignItems: 'center',
     justifyContent: 'center',
-    marginHorizontal: 15,
+    marginHorizontal: 5,
+  },
+  buttonO: {
+    width: 60,
+    height: 60,
+    backgroundColor: '#333',
+    borderRadius: 45,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginHorizontal: 5,
   },
 });
